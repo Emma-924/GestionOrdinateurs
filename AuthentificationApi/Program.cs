@@ -1,11 +1,11 @@
 var builder = WebApplication.CreateBuilder(args);
 
-// CORS : autorise le client Blazor (port 5167) à demander un token
+// CORS : autorise le client Blazor (port 5167 en local, port 5000 sous Docker) à demander un token
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowBlazorClient", policy =>
     {
-        policy.WithOrigins("http://localhost:5167")
+        policy.WithOrigins("http://localhost:5167", "http://localhost:5000")
               .AllowAnyHeader()
               .AllowAnyMethod();
     });
