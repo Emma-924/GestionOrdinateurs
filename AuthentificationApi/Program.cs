@@ -11,10 +11,10 @@ builder.Services.AddCors(options =>
     });
 });
 
-// HttpClientFactory : client nommé pour appeler l'API de gestion (recherche d'un utilisateur par login)
+// HttpClientFactory : client nommé pour appeler l'API de gestion (recherche d'un utilisateur par login), via son nom de service Docker
 builder.Services.AddHttpClient("GestionApi", client =>
 {
-    client.BaseAddress = new Uri("http://localhost:5140/api/");
+    client.BaseAddress = new Uri("http://gestionordinateurs-api:5140/api/");
 });
 
 builder.Services.AddControllers();
