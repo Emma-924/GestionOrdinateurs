@@ -1,0 +1,62 @@
+@page "/login"
+
+@inject IHttpClientFactory Factory
+@inject Blazored.SessionStorage.ISessionStorageService SessionStorage
+@inject NavigationManager Navigation
+
+@* Page de connexion : demande un token JWT pour le login saisi et l'enregistre en session. *@
+
+<PageTitle>Connexion</PageTitle>
+
+<h3>Connexion</h3>
+
+<input class="form-control" @bind="LoginSaisi" placeholder="Login (ex : user1)" />
+
+<button class="btn btn-primary mt-2" @onclick="SeConnecter">Connecter</button>
+
+<p class="text-danger mt-2">@Message</p>
+
+@code {
+    private string LoginSaisi = "";
+    private string Message = "";
+
+    // Demande un token JWT pour le login saisi, l'enregistre en session puis redirige vers l'accueil (message adapté en cas d'erreur).
+    private async Task SeConnecter()
+    {
+        if (string.IsNullOrWhiteSpace(LoginSaisi))
+        {
+            Message = "Veuillez saisir un login.";
+            return;
+        }
+
+        var clientAuth = Factory.CreateClient("AuthApi");
+
+        HttpResponseMessage reponse;
+        try
+        {
+            reponse = await clientAuth.PostAsync($"Authentication/login?login={Uri.EscapeDataString(LoginSaisi)}", null);
+        }
+        catch (HttpRequestException)
+        {
+            Message = "Impossible de joindre le service d'authentification.";
+            return;
+        }
+
+        if (reponse.StatusCode == HttpStatusCode.NotFound)
+        {
+            Message = "L'utilisateur n'existe pas.";
+            return;
+        }
+
+        if (!reponse.IsSuccessStatusCode)
+        {
+            Message = $"Erreur du service d'authentification ({(int)reponse.StatusCode}).";
+            return;
+        }
+
+        var token = await reponse.Content.ReadAsStringAsync();
+
+        await SessionStorage.SetItemAsync("jwtToken", token);
+        Navigation.NavigateTo("/");
+    }
+}

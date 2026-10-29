@@ -1,0 +1,73 @@
+@page "/ordinateurs"
+@using System.Net.Http.Headers
+
+@inject IHttpClientFactory Factory
+@inject Blazored.SessionStorage.ISessionStorageService SessionStorage
+
+@* Page qui affiche la liste des ordinateurs, récupérée via la Gateway. *@
+
+<PageTitle>Ordinateurs</PageTitle>
+
+<h3>Liste des ordinateurs</h3>
+
+<p class="text-danger">@Message</p>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>Nom</th>
+            <th>Prix</th>
+            <th>Devise</th>
+            <th>Vendu</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var ordinateur in ordinateurs)
+        {
+            <tr>
+                <td>@ordinateur.Nom</td>
+                <td>@ordinateur.Prix</td>
+                <td>EUR</td>
+                <td>@(ordinateur.Vendu ? "Oui" : "Non")</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+    private List<Ordinateur> ordinateurs = new();
+    private string Message = "";
+
+    // Au chargement de la page, récupère les ordinateurs via la Gateway en envoyant le token JWT de la session (message adapté en cas d'erreur).
+    protected override async Task OnInitializedAsync()
+    {
+        var token = await SessionStorage.GetItemAsync<string>("jwtToken");
+
+        var client = Factory.CreateClient("Gateway");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        HttpResponseMessage reponse;
+        try
+        {
+            reponse = await client.GetAsync("Ordinateurs");
+        }
+        catch (HttpRequestException)
+        {
+            Message = "Impossible de joindre la Gateway.";
+            return;
+        }
+
+        if (!reponse.IsSuccessStatusCode)
+        {
+            Message = reponse.StatusCode switch
+            {
+                HttpStatusCode.Unauthorized => "Impossible de charger les ordinateurs : veuillez vous connecter.",
+                HttpStatusCode.Forbidden => "Accès refusé.",
+                _ => $"Erreur serveur ({(int)reponse.StatusCode})."
+            };
+            return;
+        }
+
+        ordinateurs = await reponse.Content.ReadFromJsonAsync<List<Ordinateur>>() ?? new();
+    }
+}

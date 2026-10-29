@@ -1,0 +1,73 @@
+@page "/reparations"
+@using System.Net.Http.Headers
+
+@inject IHttpClientFactory Factory
+@inject Blazored.SessionStorage.ISessionStorageService SessionStorage
+
+@* Page qui affiche l'historique des réparations, récupéré via la Gateway. *@
+
+<PageTitle>Réparations</PageTitle>
+
+<h3>Historique des réparations</h3>
+
+<p class="text-danger">@Message</p>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>Ordinateur</th>
+            <th>Technicien</th>
+            <th>Type de réparation</th>
+            <th>Date d'intervention</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var reparation in historique)
+        {
+            <tr>
+                <td>@reparation.NomOrdinateur</td>
+                <td>@reparation.Technicien</td>
+                <td>@reparation.TypeReparation</td>
+                <td>@reparation.DateIntervention.ToString("dd/MM/yyyy HH:mm")</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+    private List<HistoriqueReparationRecord> historique = new();
+    private string Message = "";
+
+    // Au chargement de la page, récupère l'historique des réparations via la Gateway en envoyant le token JWT de la session (message adapté en cas d'erreur).
+    protected override async Task OnInitializedAsync()
+    {
+        var token = await SessionStorage.GetItemAsync<string>("jwtToken");
+
+        var client = Factory.CreateClient("Gateway");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        HttpResponseMessage reponse;
+        try
+        {
+            reponse = await client.GetAsync("Reparation/historique");
+        }
+        catch (HttpRequestException)
+        {
+            Message = "Impossible de joindre la Gateway.";
+            return;
+        }
+
+        if (!reponse.IsSuccessStatusCode)
+        {
+            Message = reponse.StatusCode switch
+            {
+                HttpStatusCode.Unauthorized => "Impossible de charger l'historique : veuillez vous connecter.",
+                HttpStatusCode.Forbidden => "Accès refusé.",
+                _ => $"Erreur serveur ({(int)reponse.StatusCode})."
+            };
+            return;
+        }
+
+        historique = await reponse.Content.ReadFromJsonAsync<List<HistoriqueReparationRecord>>() ?? new();
+    }
+}
