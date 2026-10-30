@@ -1,4 +1,3 @@
-using System.Text;
 using GestionOrdinateurs.API;
 using GestionOrdinateurs.Shared;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -62,10 +61,7 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// Configuration JWT
-var jwtKey = builder.Configuration["Jwt:Key"] ?? "";
-var key = Encoding.ASCII.GetBytes(jwtKey);
-
+// Configuration JWT : les tokens sont désormais émis par Keycloak (realm MyRealm)
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -74,12 +70,21 @@ builder.Services.AddAuthentication(options =>
 {
     options.RequireHttpsMetadata = false;
     options.SaveToken = true;
+    // Garde les noms des claims tels qu'ils sont dans le token (dont "roles", ajouté par le mapper Keycloak)
+    options.MapInboundClaims = false;
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuerSigningKey = true,
-        IssuerSigningKey = new SymmetricSecurityKey(key),
+        // Récupère les clés publiques de Keycloak pour vérifier la signature du token
+        IssuerSigningKeyResolver = (token, securityToken, kid, parameters) =>
+        {
+            var cles = new HttpClient().GetStringAsync("http://keycloak:8080/realms/MyRealm/protocol/openid-connect/certs").Result;
+            return new JsonWebKeySet(cles).GetSigningKeys();
+        },
         ValidateIssuer = false,
-        ValidateAudience = false
+        ValidateAudience = false,
+        NameClaimType = "preferred_username",
+        RoleClaimType = "roles"
     };
     options.Events = new JwtBearerEvents
     {

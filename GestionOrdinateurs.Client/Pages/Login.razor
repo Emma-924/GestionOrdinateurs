@@ -4,7 +4,7 @@
 @inject Blazored.SessionStorage.ISessionStorageService SessionStorage
 @inject NavigationManager Navigation
 
-@* Page de connexion : demande un token JWT pour le login saisi et l'enregistre en session. *@
+@* Page de connexion : demande un token à Keycloak (via l'API d'authentification) et l'enregistre en session. *@
 
 <PageTitle>Connexion</PageTitle>
 
@@ -12,20 +12,23 @@
 
 <input class="form-control" @bind="LoginSaisi" placeholder="Login (ex : user1)" />
 
+<input class="form-control mt-2" type="password" @bind="MotDePasse" placeholder="Mot de passe" />
+
 <button class="btn btn-primary mt-2" @onclick="SeConnecter">Connecter</button>
 
 <p class="text-danger mt-2">@Message</p>
 
 @code {
     private string LoginSaisi = "";
+    private string MotDePasse = "";
     private string Message = "";
 
-    // Demande un token JWT pour le login saisi, l'enregistre en session puis redirige vers l'accueil (message adapté en cas d'erreur).
+    // Envoie le login et le mot de passe, enregistre le token Keycloak en session puis redirige vers l'accueil (message adapté en cas d'erreur).
     private async Task SeConnecter()
     {
-        if (string.IsNullOrWhiteSpace(LoginSaisi))
+        if (string.IsNullOrWhiteSpace(LoginSaisi) || string.IsNullOrWhiteSpace(MotDePasse))
         {
-            Message = "Veuillez saisir un login.";
+            Message = "Veuillez saisir un login et un mot de passe.";
             return;
         }
 
@@ -34,7 +37,7 @@
         HttpResponseMessage reponse;
         try
         {
-            reponse = await clientAuth.PostAsync($"Authentication/login?login={Uri.EscapeDataString(LoginSaisi)}", null);
+            reponse = await clientAuth.PostAsJsonAsync("Authentication/keycloak-login", new LoginRequest(LoginSaisi, MotDePasse));
         }
         catch (HttpRequestException)
         {
@@ -42,9 +45,9 @@
             return;
         }
 
-        if (reponse.StatusCode == HttpStatusCode.NotFound)
+        if (reponse.StatusCode == HttpStatusCode.Unauthorized)
         {
-            Message = "L'utilisateur n'existe pas.";
+            Message = "Login ou mot de passe incorrect.";
             return;
         }
 

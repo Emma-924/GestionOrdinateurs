@@ -5,6 +5,7 @@ using System.Text;
 using GestionOrdinateurs.Shared;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
+using System.Text.Json;
 
 namespace AuthentificationApi.Controllers;
 
@@ -79,5 +80,40 @@ public class AuthenticationController : ControllerBase
 
         var token = tokenHandler.CreateToken(tokenDescriptor);
         return tokenHandler.WriteToken(token);
+    }
+
+    // Envoie le login et le mot de passe à Keycloak, puis renvoie le token d'accès obtenu.
+    // Renvoie 401 si les identifiants sont refusés, 503 si Keycloak est injoignable.
+    [HttpPost("keycloak-login")]
+    public async Task<IActionResult> LoginKeycloak(LoginRequest request)
+    {
+        var client = _httpClientFactory.CreateClient();
+
+        var parametres = new Dictionary<string, string>
+    {
+        { "grant_type", "password" },
+        { "client_id", _configuration["Keycloak:ClientId"] ?? "" },
+        { "client_secret", _configuration["Keycloak:ClientSecret"] ?? "" },
+        { "username", request.Username },
+        { "password", request.Password }
+    };
+
+        HttpResponseMessage reponse;
+        try
+        {
+            reponse = await client.PostAsync(_configuration["Keycloak:TokenUrl"], new FormUrlEncodedContent(parametres));
+        }
+        catch (HttpRequestException)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, "Keycloak est injoignable.");
+        }
+
+        if (!reponse.IsSuccessStatusCode)
+        {
+            return Unauthorized("Login ou mot de passe incorrect.");
+        }
+
+        var json = await reponse.Content.ReadFromJsonAsync<JsonElement>();
+        return Ok(json.GetProperty("access_token").GetString());
     }
 }
